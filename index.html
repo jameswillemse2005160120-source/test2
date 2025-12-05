@@ -398,7 +398,219 @@
         <!-- Bootstrap core JS-->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
         <!-- Core theme JS-->
-        <script src="js/scripts.js"></script>
+        <script src="js/scripts.js">
+            /*************************************************************************
+ *  MERCENARY‑GRADE WEBSITE DEFENSE SYSTEM (LEGAL, DEFENSIVE-ONLY)
+ *  Layers:
+ *   1. WAF Signature Scanning
+ *   2. Hexagonal Modular Engine
+ *   3. IP Reputation Blocking
+ *   4. Behavioral Anomaly Detection
+ *   5. Rate Limiting
+ *   6. Honeypot Trap
+ *   7. Upload Scanning + Quarantine
+ *   8. Secure Headers
+ *   9. Logging + Alerts
+ *************************************************************************/
+
+const express = require("express");
+const app = express();
+app.use(express.json());
+
+/*********************
+ * 1. SIGNATURE RULES
+ *********************/
+const wafRules = [
+    /<script.*?>/i,
+    /javascript:/i,
+    /onerror=/i,
+    /onload=/i,
+    /eval\(/i,
+    /exec\(/i,
+    /\bUNION SELECT\b/i,
+    /\bDROP TABLE\b/i,
+    /\bINSERT INTO\b/i,
+    /\bSELECT .* FROM\b/i,
+    /\.\.\/\.\.\//i,
+    /fetch\(/i,
+    /XMLHttpRequest/i,
+    /%00|%2e%2e/i,
+    /['"`]\s*(or|and)\s*['"`]/i // simple SQL logic block
+];
+
+/*********************************
+ * 2. HEXAGONAL SCANNING ENGINE
+ *********************************/
+function hexScan(input, modules) {
+    return modules.some(m => m(input));
+}
+
+function signatureModule(input) {
+    return wafRules.some(rule => rule.test(input));
+}
+
+/***********************
+ * 3. IP REPUTATION LIST
+ ***********************/
+const badIPs = new Set([
+    "45.155.205.55",
+    "92.63.197.12"
+]);
+
+function reputationModule(req) {
+    return badIPs.has(req.ip);
+}
+
+/***********************************
+ * 4. BEHAVIORAL ANOMALY DETECTION
+ ***********************************/
+function behaviorModule(req) {
+    const body = JSON.stringify(req.body);
+    const unusual = body.length > 50000 ||
+                    (req.headers["user-agent"] || "").length < 10 ||
+                    (req.path.match(/admin/i) && !req.headers.cookie);
+
+    return unusual;
+}
+
+/******************
+ * 5. RATE LIMITING
+ ******************/
+const rateStore = new Map();
+
+function rateLimiter(req, res, next) {
+    const ip = req.ip;
+    const now = Date.now();
+
+    if (!rateStore.has(ip)) {
+        rateStore.set(ip, { count: 1, last: now });
+        return next();
+    }
+
+    const session = rateStore.get(ip);
+
+    if (now - session.last < 60000 && session.count > 80) {
+        secLog("RATE_LIMIT_BLOCK", { ip });
+        return res.status(429).send("Too many requests.");
+    }
+
+    if (now - session.last > 60000) {
+        session.count = 1;
+        session.last = now;
+    } else {
+        session.count++;
+    }
+
+    next();
+}
+
+/**********************
+ * 6. HONEYPOT TRAP
+ **********************/
+app.get("/admin-login", (req, res) => {
+    secLog("HONEYPOT_TRIGGERED", { ip: req.ip });
+    res.status(403).send("Unauthorized.");
+});
+
+/**********************************
+ * 7. UPLOAD SCAN + QUARANTINE
+ **********************************/
+function scanUpload(file) {
+    const allowed = ["image/png", "image/jpeg", "application/pdf"];
+
+    if (!allowed.includes(file.mimetype)) {
+        return { safe: false, reason: "Bad file type" };
+    }
+
+    if (signatureModule(file.buffer.toString())) {
+        return { safe: false, reason: "Dangerous content" };
+    }
+
+    return { safe: true };
+}
+
+/***********************
+ * 8. SECURE HEADERS
+ ***********************/
+function secureHeaders(req, res, next) {
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+}
+
+/***********************
+ * 9. LOGGING + ALERTING
+ ***********************/
+function secLog(event, details) {
+    console.log(JSON.stringify({
+        ts: new Date().toISOString(),
+        event,
+        details
+    }));
+}
+
+function alertAdmin(message) {
+    secLog("ALERT", { message });
+    // Optional: Email or webhook alert integration
+}
+
+/***********************************
+ *  MAIN FIREWALL COMBINED FUNCTION
+ ***********************************/
+const modules = [signatureModule];
+
+function firewall(req, res, next) {
+    // IP Reputation
+    if (reputationModule(req)) {
+        secLog("BLOCKED_BAD_IP", { ip: req.ip });
+        return res.status(403).send("Forbidden.");
+    }
+
+    const data = JSON.stringify({
+        body: req.body,
+        query: req.query,
+        params: req.params
+    });
+
+    // Hexagonal Pattern Scan
+    if (hexScan(data, modules)) {
+        secLog("WAF_BLOCK", { ip: req.ip });
+        alertAdmin("Blocked malicious request");
+        return res.status(403).send("Request blocked.");
+    }
+
+    // Behavior Scan
+    if (behaviorModule(req)) {
+        secLog("ANOMALY_DETECTED", { ip: req.ip });
+        return res.status(403).send("Suspicious behavior.");
+    }
+
+    next();
+}
+
+/******************************
+ *  USE ALL SECURITY LAYERS
+ ******************************/
+app.use(secureHeaders);
+app.use(rateLimiter);
+app.use(firewall);
+
+/******************************
+ *  ROUTES
+ ******************************/
+app.get("/", (req, res) => {
+    res.send("Mercenary-grade security is active.");
+});
+
+/******************************
+ *  RUN SERVER
+ ******************************/
+app.listen(3000, () => {
+    console.log("Mercenary-grade firewall active on port 3000");
+});
+
+        </script>
         <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *-->
         <!-- * *                               SB Forms JS                               * *-->
         <!-- * * Activate your form at https://startbootstrap.com/solution/contact-forms * *-->
