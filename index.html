@@ -609,6 +609,28 @@ app.get("/", (req, res) => {
 app.listen(3000, () => {
     console.log("Mercenary-grade firewall active on port 3000");
 });
+function spywareFirewall(req, res, next) {
+    const requestData = JSON.stringify({
+        body: req.body,
+        query: req.query,
+        params: req.params,
+        headers: req.headers
+    });
+
+    // Block script injection, C2 calls, spyware installers
+    if (blockSpywareInstallation(requestData)) {
+        console.log("[SPYWARE BLOCKED] Foreign installation attempt stopped.");
+        return res.status(403).send("Spyware installation blocked.");
+    }
+
+    // Block file uploads used for spyware
+    if (req.file && blockFileUploads(req.file.originalname)) {
+        console.log("[SPYWARE BLOCKED] Malicious file upload stopped.");
+        return res.status(403).send("Malicious upload blocked.");
+    }
+
+    next();
+}
 
         </script>
         <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *-->
